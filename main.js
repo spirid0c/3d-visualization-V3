@@ -711,7 +711,7 @@ async function processGRIBWithVercel(file) {
         const formData = new FormData();
         formData.append("file", file);
 
-        const response = await fetch('https://isogsm-backend.onrender.com', {
+        const response = await fetch('https://isogsm-backend.onrender.com/decode', {
             method: 'POST',
             body: formData
         });
