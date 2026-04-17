@@ -711,7 +711,7 @@ async function processGRIBWithVercel(file) {
         const formData = new FormData();
         formData.append("file", file);
 
-        const response = await fetch('https://isogsm-backend.onrender.com/decode', {
+        const response = await fetch('https://isogsm-backend.onrender.com', {
             method: 'POST',
             body: formData
         });
@@ -722,7 +722,7 @@ async function processGRIBWithVercel(file) {
         }
 
         const result = await response.json();
-        
+
         if (result.error) {
             throw new Error(result.error);
         }
@@ -732,7 +732,7 @@ async function processGRIBWithVercel(file) {
         }
 
         const floatArray = new Float32Array(result.data);
-        
+
         buffer1 = floatArray;
         PARAMS.frames = 1;
         PARAMS.currentFrame = 0;
