@@ -6,6 +6,9 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
     <meta name="description" content="IsoGSM 3D — Atmospheric water vapor tracer dynamics">
     <title>IsoGSM — Atmospheric Vapor Tracer</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600&family=Roboto+Mono:wght@400;500&display=swap" rel="stylesheet">
     <link rel="stylesheet" href="style.css">
     <script type="importmap">
         {
@@ -33,21 +36,21 @@
     <div id="ui-panel">
         <div class="tabs">
             <div id="tab-archives" class="tab active-tab">Archives</div>
-            <div id="tab-upload" class="tab">Import Local</div>
+            <div id="tab-upload" class="tab">Local Import</div>
         </div>
 
         <div id="upload-view" style="display:none; flex-direction: column; width: 100%; margin-top: 15px;">
 
             <button id="btn-back-archives"
                 style="width: 100%; background: transparent; border: 1px solid #555; color: #ccc; padding: 8px 12px; border-radius: 4px; cursor: pointer; font-size: 13px; text-align: center; transition: 0.2s;">
-                ← Retour aux Archives
+                ← Back to Archives
             </button>
 
             <div id="drop-zone-box"
                 style="width: 100%; margin-top: 40px; text-align: center; display: flex; flex-direction: column; align-items: center; justify-content: center; padding: 10px 0;">
-                <p style="margin: 0 0 5px 0;">Glissez vos fichiers ici</p>
-                <p style="font-size: 10px; color: #888; margin: 0 0 15px 0;">(.nc, .bin, .ft supportés)</p>
-                <button id="btn-browse" style="cursor: pointer; padding: 6px 16px;">Parcourir</button>
+                <p style="margin: 0 0 5px 0;">Drag your files here</p>
+                <p style="font-size: 10px; color: #888; margin: 0 0 15px 0;">(.nc, .bin, .ft supported)</p>
+                <button id="btn-browse" style="cursor: pointer; padding: 6px 16px;">Browse</button>
                 <input type="file" id="file-input" style="display: none;">
             </div>
         </div>
@@ -74,7 +77,7 @@
 
         <div id="common-ui">
             <div id="playback-row">
-                <button id="btn-toggle-view" style="background:#444; margin-bottom: 12px;">Vue : Globe 3D</button>
+                <button id="btn-toggle-view" style="background:#444; margin-bottom: 12px;">View: 3D Globe</button>
                 <button id="btn-play" class="play-btn">▶ Play</button>
                 <div class="slider-wrap">
                     <input type="range" id="time-slider" min="0" max="90" value="0">
