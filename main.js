@@ -701,72 +701,83 @@ function handleFileSelection(files) {
     }
 }
 
-async function processGRIBWithVercel(file) {
+async function processMultipleGRIBWithVercel(files, paramId = 150) {
     try {
         if (typeof uiDateDisplay !== 'undefined' && uiDateDisplay) {
-            uiDateDisplay.innerText = "DÉCODAGE EN COURS...";
+            uiDateDisplay.innerText = `DÉCODAGE DE ${files.length} FICHIERS...`;
             uiDateDisplay.parentElement.style.display = "block";
         }
 
-        const formData = new FormData();
-        formData.append("file", file);
-
-        const response = await fetch('https://isogsm-backend.onrender.com/decode', {
-            method: 'POST',
-            body: formData
+        // 1. Sort files sequentially (ft00, ft24, ft48...)
+        files.sort((a, b) => {
+            const numA = parseInt(a.name.match(/\d+/)?.[0] || 0);
+            const numB = parseInt(b.name.match(/\d+/)?.[0] || 0);
+            return numA - numB;
         });
 
-        if (!response.ok) {
-            const errBody = await response.text();
-            throw new Error(`Erreur serveur (${response.status}): ${errBody}`);
-            // ⬇️ --- AJOUTE LE CODE DE DIAGNOSTIC ICI --- ⬇️
-            const rawArray = new Float32Array(result.data);
-            const maxVal = Math.max(...rawArray);
-            const minVal = Math.min(...rawArray);
-            console.log(`Fichier ${i} -> Min: ${minVal}, Max: ${maxVal}`);
-            console.log("Échantillon des 10 premières valeurs :", rawArray.slice(0, 10));
-            // ⬆️ --------------------------------------- ⬆️
+        const GRID_SIZE = 192 * 94;
+        const combinedBuffer = new Float32Array(files.length * GRID_SIZE);
+        let framesLoaded = 0;
 
-            // 3. NETTOYAGE ANTI-ROSE (Filtre les Missing Values GRIB)
+        // 2. Process each file
+        for (let i = 0; i < files.length; i++) {
+            if (typeof uiDateDisplay !== 'undefined' && uiDateDisplay) {
+                uiDateDisplay.innerText = `DÉCODAGE: ${i + 1} / ${files.length}...`;
+            }
+
+            const formData = new FormData();
+            formData.append("file", files[i]);
+            formData.append("param_id", paramId);
+
+            const response = await fetch('https://isogsm-backend.onrender.com/decode', {
+                method: 'POST',
+                body: formData
+            });
+
+            if (!response.ok) {
+                console.error(`Server error for ${files[i].name}. Status: ${response.status}`);
+                continue; // Skip failed files, don't crash the whole process
+            }
+
+            const result = await response.json();
+
+            // 3. Clean and map data
             const cleanArray = new Float32Array(result.data).map(v => {
                 if (v > 1000 || isNaN(v)) return 0;
                 return v;
             });
 
-
+            // Set the data into the correct offset of the combined buffer
+            combinedBuffer.set(cleanArray, framesLoaded * GRID_SIZE);
+            framesLoaded++;
         }
 
-        const result = await response.json();
+        if (framesLoaded === 0) throw new Error("No files were successfully processed.");
 
-        if (result.error) {
-            throw new Error(result.error);
-        }
-
-        if (!result.data || !Array.isArray(result.data)) {
-            throw new Error("Format de réponse invalide du serveur");
-        }
-
-        const floatArray = new Float32Array(result.data);
-
-        buffer1 = floatArray;
-        PARAMS.frames = 1;
+        // 4. Update the 3D Player state
+        // CRITICAL: We only keep the portion of the buffer we actually filled
+        buffer1 = combinedBuffer.slice(0, framesLoaded * GRID_SIZE);
+        PARAMS.frames = framesLoaded;
         PARAMS.currentFrame = 0;
         isLocalData = true;
 
-        if (typeof sliderTime !== 'undefined' && sliderTime) sliderTime.max = 0;
+        if (typeof sliderTime !== 'undefined' && sliderTime) {
+            sliderTime.max = framesLoaded - 1;
+            sliderTime.value = 0;
+        }
 
         const datasetLabel = document.getElementById('dataset-label');
-        if (datasetLabel) datasetLabel.innerText = "Fichier décodé via Vercel";
+        if (datasetLabel) datasetLabel.innerText = `${framesLoaded} fichier(s) .ft décodés`;
 
         if (typeof uploadView !== 'undefined' && uploadView) uploadView.style.display = 'none';
         if (typeof commonUI !== 'undefined' && commonUI) commonUI.style.display = 'block';
 
         updateFrame();
-        console.log("GRIB décodé et affiché avec succès.");
+        console.log(`Succès: ${framesLoaded} frames chargées et assemblées.`);
 
     } catch (error) {
         console.error("Vercel decoding error:", error);
-        alert("Erreur lors du décodage avec Vercel: " + error.message);
+        alert("Erreur lors du décodage: " + error.message);
         if (typeof uiDateDisplay !== 'undefined' && uiDateDisplay) {
             uiDateDisplay.innerText = "ATTENTE DE FICHIERS...";
         }
