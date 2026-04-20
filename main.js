@@ -719,6 +719,21 @@ async function processGRIBWithVercel(file) {
         if (!response.ok) {
             const errBody = await response.text();
             throw new Error(`Erreur serveur (${response.status}): ${errBody}`);
+            // ⬇️ --- AJOUTE LE CODE DE DIAGNOSTIC ICI --- ⬇️
+            const rawArray = new Float32Array(result.data);
+            const maxVal = Math.max(...rawArray);
+            const minVal = Math.min(...rawArray);
+            console.log(`Fichier ${i} -> Min: ${minVal}, Max: ${maxVal}`);
+            console.log("Échantillon des 10 premières valeurs :", rawArray.slice(0, 10));
+            // ⬆️ --------------------------------------- ⬆️
+
+            // 3. NETTOYAGE ANTI-ROSE (Filtre les Missing Values GRIB)
+            const cleanArray = new Float32Array(result.data).map(v => {
+                if (v > 1000 || isNaN(v)) return 0;
+                return v;
+            });
+
+
         }
 
         const result = await response.json();
