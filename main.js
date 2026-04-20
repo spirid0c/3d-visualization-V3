@@ -605,6 +605,29 @@ if (fileInput) {
     fileInput.setAttribute('accept', '.nc,.bin,.ft*');
 }
 
+// -- VÉRITABLE DRAG & DROP --
+if (dropZoneBox) {
+    dropZoneBox.addEventListener('dragover', (e) => {
+        e.preventDefault();
+        dropZoneBox.style.background = 'rgba(255,255,255,0.1)';
+        dropZoneBox.style.border = '2px dashed #00bfff';
+    });
+    dropZoneBox.addEventListener('dragleave', (e) => {
+        e.preventDefault();
+        dropZoneBox.style.background = 'transparent';
+        dropZoneBox.style.border = 'none';
+    });
+    dropZoneBox.addEventListener('drop', (e) => {
+        e.preventDefault();
+        dropZoneBox.style.background = 'transparent';
+        dropZoneBox.style.border = 'none';
+        
+        if (e.dataTransfer.files && e.dataTransfer.files.length > 0) {
+            handleFileSelection(e.dataTransfer.files);
+        }
+    });
+}
+
 // --- LOGIQUE DES ONGLETS AVEC RESET ---
 // --- LOGIQUE DES ONGLETS CORRIGÉE ---
 // --- LOGIQUE DES ONGLETS CORRIGÉE ET COMPLÈTE ---
@@ -703,6 +726,8 @@ function handleFileSelection(files) {
 
 async function processMultipleGRIBWithVercel(files, paramId = 150) {
     try {
+        console.warn(`[DEBUG IsoGSM] processMultipleGRIBWithVercel appelé avec ${files.length} fichiers !`);
+        
         if (typeof uiDateDisplay !== 'undefined' && uiDateDisplay) {
             uiDateDisplay.innerText = `DÉCODAGE DE ${files.length} FICHIERS...`;
             uiDateDisplay.parentElement.style.display = "block";
@@ -721,6 +746,8 @@ async function processMultipleGRIBWithVercel(files, paramId = 150) {
 
         // 2. Process each file
         for (let i = 0; i < files.length; i++) {
+            console.log(`[DEBUG IsoGSM] Envoi du fichier ${i + 1}/${files.length} : ${files[i].name}`);
+            
             if (typeof uiDateDisplay !== 'undefined' && uiDateDisplay) {
                 uiDateDisplay.innerText = `DÉCODAGE: ${i + 1} / ${files.length}...`;
             }
@@ -735,11 +762,13 @@ async function processMultipleGRIBWithVercel(files, paramId = 150) {
             });
 
             if (!response.ok) {
-                console.error(`Server error for ${files[i].name}. Status: ${response.status}`);
+                console.error(`[DEBUG IsoGSM] Server error for ${files[i].name}. Status: ${response.status}`);
                 continue; // Skip failed files, don't crash the whole process
             }
 
             const result = await response.json();
+            
+            console.log(`[DEBUG IsoGSM] Reçu JSON. result.data length: ${result.data ? result.data.length : 'UNDEFINED'}`);
 
             // 3. Clean and map data
             const cleanArray = new Float32Array(result.data).map(v => {
@@ -750,13 +779,15 @@ async function processMultipleGRIBWithVercel(files, paramId = 150) {
             // Set the data into the correct offset of the combined buffer
             combinedBuffer.set(cleanArray, framesLoaded * GRID_SIZE);
             framesLoaded++;
+            console.log(`[DEBUG IsoGSM] framesLoaded vaut maintenant : ${framesLoaded}`);
         }
 
         if (framesLoaded === 0) throw new Error("No files were successfully processed.");
 
         // 4. Update the 3D Player state
-        // CRITICAL: We only keep the portion of the buffer we actually filled
         buffer1 = combinedBuffer.slice(0, framesLoaded * GRID_SIZE);
+        console.warn(`[DEBUG IsoGSM] FIN. Mise à jour de PARAMS.frames à ${framesLoaded} !`);
+        
         PARAMS.frames = framesLoaded;
         PARAMS.currentFrame = 0;
         isLocalData = true;
@@ -783,6 +814,8 @@ async function processMultipleGRIBWithVercel(files, paramId = 150) {
         }
     }
 }
+
+
 
 
 async function readMultipleBinFiles(files) {
