@@ -44,6 +44,8 @@ const SEASONS = [
 
 let buffer1 = null;
 let buffer2 = null;
+let localBuffer = null;
+let localFramesLoaded = 0;
 let dataTexture = null;
 let material = null;
 
@@ -335,10 +337,17 @@ async function loadData() {
 }
 
 function updateFrame() {
-    const active = PARAMS.datasetIndex === 1 ? buffer1 : buffer2;
+    let active = null;
+    if (isLocalData) {
+        active = localBuffer;
+        PARAMS.frames = localFramesLoaded;
+    } else {
+        active = PARAMS.datasetIndex === 1 ? buffer1 : buffer2;
+        PARAMS.frames = 91;
+    }
 
-    // 🛡️ 1. MODE GLOBE VIERGE (Pas de données ou attente d'import)
-    if (!active || (isLocalData && uploadView.style.display === 'flex')) {
+    // 🛡️ 1. MODE GLOBE VIERGE (Pas de données ou attente d'import initial)
+    if (!active) {
         // On remplit les données avec des zéros (0) = Plus de couleurs, juste les continents !
         if (typeof dataTexture !== 'undefined' && dataTexture.image && dataTexture.image.data) {
             dataTexture.image.data.fill(0);
@@ -351,21 +360,29 @@ function updateFrame() {
     if (dataSphere) dataSphere.visible = true;
     if (dataPlane && PARAMS.viewMode !== 0) dataPlane.visible = true;
 
+    // --- MISE À JOUR CIBLÉE DES COMPOSANTS (SLIDER ET LABELS) ---
+    if (sliderTime) sliderTime.max = PARAMS.frames - 1;
+
     // On injecte les données de la frame actuelle
     dataTexture.image.data.set(active.subarray(PARAMS.currentFrame * 192 * 94, (PARAMS.currentFrame + 1) * 192 * 94));
     dataTexture.needsUpdate = true;
     sliderTime.value = PARAMS.currentFrame;
 
-    // --- Mise à jour du texte de la bannière ---
+    // --- Mise à jour du texte de la bannière et des labels UI ---
     const dateDisplay = document.getElementById('date-display');
+    const datasetLabel = document.getElementById('dataset-label');
+    const frameLabel = document.getElementById('frame-label');
+
     if (isLocalData) {
         if (dateDisplay) dateDisplay.innerText = `FRAME: ${PARAMS.currentFrame + 1} / ${PARAMS.frames}`;
+        if (datasetLabel) datasetLabel.innerText = `${PARAMS.frames} local file(s) loaded`;
+        if (frameLabel) frameLabel.innerText = `${PARAMS.currentFrame + 1} / ${PARAMS.frames}`;
     } else {
         const d = new Date(SEASONS[PARAMS.seasonIndex].tdefStart.getTime() + PARAMS.currentFrame * 86400000);
         const MONTHS = ['JAN', 'FEB', 'MAR', 'APR', 'MAY', 'JUN', 'JUL', 'AUG', 'SEP', 'OCT', 'NOV', 'DEC'];
         if (dateDisplay) dateDisplay.innerText = `${String(d.getUTCDate()).padStart(2, '0')} ${MONTHS[d.getUTCMonth()]} ${d.getUTCFullYear()}`;
-
-        const frameLabel = document.getElementById('frame-label');
+        
+        if (datasetLabel) datasetLabel.innerText = `PWAT${PARAMS.datasetIndex} — ${PARAMS.datasetIndex === 1 ? 'Japan' : 'Brazil'}`;
         if (frameLabel) frameLabel.innerText = `${PARAMS.currentFrame + 1} / 91`;
     }
 
@@ -480,7 +497,7 @@ btnToggleView.addEventListener('click', () => {
     // Cycle : 0 (3D) -> 1 (2D) -> 2 (SPLIT) -> 0
     PARAMS.viewMode = (PARAMS.viewMode + 1) % 3;
 
-    const labels = ['Vue : Globe 3D', 'Vue : Plan 2D', 'Vue : Comparative'];
+    const labels = ['View: 3D Globe', 'View: 2D Map', 'View: Comparative'];
     btnToggleView.innerText = labels[PARAMS.viewMode];
 
     if (PARAMS.viewMode === 0) {
@@ -673,16 +690,28 @@ if (tabArchives && tabUpload) {
         tabArchives.classList.remove('active-tab');
 
         // 3. Gestion de l'affichage des menus
-        uploadView.style.display = 'flex'; // Affiche la zone de drop
         if (archiveUI) archiveUI.style.display = 'none'; // Cache (Period, Tracer...)
-        if (commonUI) commonUI.style.display = 'none'; // Cache le bouton Play
+        
+        if (localBuffer) {
+            uploadView.style.display = 'none'; // On cache la zone de drop pour afficher le globe
+            if (commonUI) commonUI.style.display = 'block'; // Affiche la barre de lecture
+        } else {
+            uploadView.style.display = 'flex'; // Affiche la zone de drop
+            if (commonUI) commonUI.style.display = 'none'; // Cache le bouton Play
+        }
 
-        // 4. Étire le conteneur et centre le texte au milieu de l'écran
+        // 4. Étire le conteneur et centre le texte au milieu de l'écran si pas de données locales
         if (uiDateDisplay) {
-            uiDateDisplay.innerText = "ATTENTE DE FICHIERS...";
-            uiDateDisplay.parentElement.style.width = "100%";
-            uiDateDisplay.parentElement.style.textAlign = "center";
-            uiDateDisplay.parentElement.style.display = "block";
+            if (!localBuffer) {
+                uiDateDisplay.innerText = "WAITING FOR FILES...";
+                uiDateDisplay.parentElement.style.width = "100%";
+                uiDateDisplay.parentElement.style.textAlign = "center";
+                uiDateDisplay.parentElement.style.display = "block";
+            } else {
+                uiDateDisplay.parentElement.style.width = "auto";
+                uiDateDisplay.parentElement.style.textAlign = "left";
+                // L'affichage de la bannière se mettra à jour automatiquement via updateFrame()
+            }
         }
 
         // 5. Déclenche la fonction qui met le globe à zéro
@@ -729,7 +758,7 @@ async function processMultipleGRIBWithVercel(files, paramId = 150) {
         console.warn(`[DEBUG IsoGSM] processMultipleGRIBWithVercel appelé avec ${files.length} fichiers !`);
         
         if (typeof uiDateDisplay !== 'undefined' && uiDateDisplay) {
-            uiDateDisplay.innerText = `DÉCODAGE DE ${files.length} FICHIERS...`;
+            uiDateDisplay.innerText = `DECODING ${files.length} FILES...`;
             uiDateDisplay.parentElement.style.display = "block";
         }
 
@@ -749,7 +778,7 @@ async function processMultipleGRIBWithVercel(files, paramId = 150) {
             console.log(`[DEBUG IsoGSM] Envoi du fichier ${i + 1}/${files.length} : ${files[i].name}`);
             
             if (typeof uiDateDisplay !== 'undefined' && uiDateDisplay) {
-                uiDateDisplay.innerText = `DÉCODAGE: ${i + 1} / ${files.length}...`;
+                uiDateDisplay.innerText = `DECODING: ${i + 1} / ${files.length}...`;
             }
 
             const formData = new FormData();
@@ -785,7 +814,8 @@ async function processMultipleGRIBWithVercel(files, paramId = 150) {
         if (framesLoaded === 0) throw new Error("No files were successfully processed.");
 
         // 4. Update the 3D Player state
-        buffer1 = combinedBuffer.slice(0, framesLoaded * GRID_SIZE);
+        localBuffer = combinedBuffer.slice(0, framesLoaded * GRID_SIZE);
+        localFramesLoaded = framesLoaded;
         console.warn(`[DEBUG IsoGSM] FIN. Mise à jour de PARAMS.frames à ${framesLoaded} !`);
         
         PARAMS.frames = framesLoaded;
@@ -798,19 +828,19 @@ async function processMultipleGRIBWithVercel(files, paramId = 150) {
         }
 
         const datasetLabel = document.getElementById('dataset-label');
-        if (datasetLabel) datasetLabel.innerText = `${framesLoaded} fichier(s) .ft décodés`;
+        if (datasetLabel) datasetLabel.innerText = `${framesLoaded} .ft file(s) decoded`;
 
         if (typeof uploadView !== 'undefined' && uploadView) uploadView.style.display = 'none';
         if (typeof commonUI !== 'undefined' && commonUI) commonUI.style.display = 'block';
 
         updateFrame();
-        console.log(`Succès: ${framesLoaded} frames chargées et assemblées.`);
+        console.log(`Success: ${framesLoaded} frames loaded and assembled.`);
 
     } catch (error) {
         console.error("Vercel decoding error:", error);
-        alert("Erreur lors du décodage: " + error.message);
+        alert("Error during decoding: " + error.message);
         if (typeof uiDateDisplay !== 'undefined' && uiDateDisplay) {
-            uiDateDisplay.innerText = "ATTENTE DE FICHIERS...";
+            uiDateDisplay.innerText = "WAITING FOR FILES...";
         }
     }
 }
@@ -869,7 +899,7 @@ async function readMultipleBinFiles(files) {
                         }
                         dataFound = true;
                     } else {
-                        console.warn(`Attention : La variable n°${RECORD_INDEX_TO_EXTRACT} ne correspond pas à une grille 2D 192x94.`);
+                        console.warn(`Warning: Variable No. ${RECORD_INDEX_TO_EXTRACT} does not correspond to a 192x94 2D grid.`);
                     }
                     break;
                 }
@@ -886,7 +916,7 @@ async function readMultipleBinFiles(files) {
         }
 
         if (totalFrames === 0) {
-            alert(`Aucune donnée compatible n'a pu être extraite à l'index ${RECORD_INDEX_TO_EXTRACT}.`);
+            alert(`No compatible data could be extracted at index ${RECORD_INDEX_TO_EXTRACT}.`);
             return;
         }
 
@@ -897,22 +927,23 @@ async function readMultipleBinFiles(files) {
         }
 
         // 4. Mise à jour du moteur 3D
+        localFramesLoaded = totalFrames;
         PARAMS.frames = totalFrames;
         PARAMS.currentFrame = 0;
         if (sliderTime) sliderTime.max = PARAMS.frames - 1;
-        buffer1 = combinedBuffer;
+        localBuffer = combinedBuffer;
         isLocalData = true;
 
         const datasetLabel = document.getElementById('dataset-label');
-        if (datasetLabel) datasetLabel.innerText = `${totalFrames} fichier(s) chargé(s)`;
+        if (datasetLabel) datasetLabel.innerText = `${totalFrames} file(s) loaded`;
         if (uploadView) uploadView.style.display = 'none';
         if (commonUI) commonUI.style.display = 'block';
 
         updateFrame();
-        console.log(`Succès : ${totalFrames} frames en ${isLittleEndian ? "Little-Endian" : "Big-Endian"}`);
+        console.log(`Success: ${totalFrames} frames in ${isLittleEndian ? "Little-Endian" : "Big-Endian"}`);
 
     } catch (err) {
-        console.error("Erreur de lecture Fortran :", err);
-        alert("Erreur lors du décodage binaire des fichiers.");
+        console.error("Fortran reading error:", err);
+        alert("Error during binary decoding of files.");
     }
 }
