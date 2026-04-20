@@ -695,7 +695,7 @@ function handleFileSelection(files) {
     if (fileName.endsWith('.nc')) {
         console.log("Lecture NetCDF locale");
     } else if (fileName.includes('.ft')) {
-        processGRIBWithVercel(fileList[0]);
+        processMultipleGRIBWithVercel(fileList);
     } else if (fileName.includes('.bin')) {
         readMultipleBinFiles(fileList);
     }
